@@ -106,7 +106,7 @@ if st.session_state.summary_df is not None:
     st.sidebar.markdown(f"**Gesamt:** {st.session_state.total_responses} Responses")
     st.sidebar.dataframe(st.session_state.summary_df, use_container_width=True, height=300)
 
-# Tabs (Visualisierung unverändert)
+# Tabs (Visualisierung mit erweiterter Anzeige)
 if st.session_state.df is not None:
     df = st.session_state.df
     tabs = st.tabs(st.session_state.genes)
@@ -144,8 +144,15 @@ if st.session_state.df is not None:
                 fig_nat.update_layout(barmode='stack', height=220, margin=dict(b=0,t=0,l=0,r=0), yaxis_range=[0,100], bargap=0, showlegend=False, width=100)
                 st.plotly_chart(fig_nat, use_container_width=True, key=f'nat_viz_{gene}_{tab_idx}')
                 
-                ja_pct = (nat_data == 'Ja').sum() / n_total * 100 if n_total > 0 else 0
-                st.caption(f'n={n_total} | Ja: {"✅ ≥80%" if ja_pct >= 80 else "<80%"}')
+                # Erweiterte Anzeige
+                ja_count = (nat_data == 'Ja').sum()
+                nein_count = (nat_data == 'Nein').sum()
+                weiss_nicht_count = (nat_data == 'Ich kann diese Frage nicht beantworten').sum()
+                ja_pct = ja_count / n_total * 100 if n_total > 0 else 0
+                
+                st.caption(f'**Gesamt:** n={n_total}')
+                st.caption(f'Ja: {ja_count} | Nein: {nein_count} | Weiß nicht: {weiss_nicht_count}')
+                st.caption(f'Cut-Off: {"✅ ≥80%" if ja_pct >= 80 else "❌ <80%"}')
 
             with right_col:
                 st.markdown("#### Wissenschaftliche Studie")
@@ -161,8 +168,15 @@ if st.session_state.df is not None:
                 fig_stud.update_layout(barmode='stack', height=220, margin=dict(b=0,t=0,l=0,r=0), yaxis_range=[0,100], bargap=0, showlegend=False, width=100)
                 st.plotly_chart(fig_stud, use_container_width=True, key=f'stud_viz_{gene}_{tab_idx}')
                 
-                ja_pct_stud = (stud_data == 'Ja').sum() / n_total_stud * 100 if n_total_stud > 0 else 0
-                st.caption(f'n={n_total_stud} | Ja: {"✅ ≥80%" if ja_pct_stud >= 80 else "<80%"}')
+                # Erweiterte Anzeige
+                ja_count_stud = (stud_data == 'Ja').sum()
+                nein_count_stud = (stud_data == 'Nein').sum()
+                weiss_nicht_count_stud = (stud_data == 'Ich kann diese Frage nicht beantworten').sum()
+                ja_pct_stud = ja_count_stud / n_total_stud * 100 if n_total_stud > 0 else 0
+                
+                st.caption(f'**Gesamt:** n={n_total_stud}')
+                st.caption(f'Ja: {ja_count_stud} | Nein: {nein_count_stud} | Weiß nicht: {weiss_nicht_count_stud}')
+                st.caption(f'Cut-Off: {"✅ ≥80%" if ja_pct_stud >= 80 else "❌ <80%"}')
 
             # Kommentare
             st.markdown("<h4 style='font-size: 17px;'>Kommentare</h4>", unsafe_allow_html=True)
