@@ -28,19 +28,22 @@ if st.session_state.df is None:
             df = pd.read_csv(uploaded_file, sep=',', quotechar='"', encoding='utf-8-sig', low_memory=False)
             st.session_state.df = df
             
-            # Präzise Namens-Extraktion
+            # Fix: Vollständige Namen (korrektes Parsing)
             gene_dict = {}
             for col in df.columns:
                 if 'Gen: ' in col and 'Erkrankung: ' in col and 'nationalen' in col and '[Kommentar]' not in col:
-                    start_gen = col.find('Gen: ') + 5
-                    end_gen = col.find('  Erkrankung: ', start_gen)
-                    gene = col[start_gen:end_gen].strip()
+                    # Gen: nach "Gen: " bis "Erkrankung: "
+                    gene_start = col.find('Gen: ') + 5
+                    gene_end = col.find(' Erkrankung: ', gene_start)
+                    gene = col[gene_start:gene_end].strip()
                     
-                    start_disease = end_gen + 15
-                    end_disease = col.find(' "', start_disease) if ' "' in col[start_disease:] else len(col)
-                    disease = col[start_disease:end_disease].strip()
+                    # Erkrankung: nach "Erkrankung: " bis nächstes " oder Ende
+                    disease_start = col.find('Erkrankung: ', gene_start) + 12
+                    disease_end = col.find('"', disease_start)
+                    if disease_end == -1: disease_end = len(col)
+                    disease = col[disease_start:disease_end].strip()
                     
-                    gene_dict[gene] = disease
+                    if gene: gene_dict[gene] = disease
             st.session_state.genes = sorted(gene_dict.keys())
             st.session_state.gene_dict = gene_dict
             
@@ -70,8 +73,8 @@ if st.session_state.df is not None:
             stud_q_cols = [col for col in df.columns if f'Gen: {gene}' in col and 'wissenschaftlicher' in col and '[Kommentar]' not in col]
             stud_kom_cols = [col for col in df.columns if f'Gen: {gene}' in col and 'wissenschaftlicher' in col and '[Kommentar]' in col]
 
-            # 3 Optionen: Ja, Nein, "Ich kann die Frage nicht beantworten"
-            options = ['Ja', 'Nein', "Ich kann die Frage nicht beantworten"]
+            # 3 EXAKTE Optionen
+            options = ['Ja', 'Nein', 'Ich kann diese Frage nicht beantworten']
             
             left_col, right_col = st.columns(2)
             
@@ -81,17 +84,21 @@ if st.session_state.df is not None:
                 n_total = len(nat_data)
                 
                 fig_nat = go.Figure()
-                colors = {'Ja': '#000000', 'Nein': '#4B5563', "Ich kann die Frage nicht beantworten": '#D1D5DB'}
-                for opt in options:
+                colors = {
+                    'Ja': '#000000', 
+                    'Nein': '#4B5563', 
+                    'Ich kann diese Frage nicht beantworten': '#D1D5DB'
+                }
+                legend_order = ['Ja', 'Nein', 'Ich kann diese Frage nicht beantworten']
+                for opt in legend_order:
                     pct = (nat_data == opt).sum() / n_total * 100 if n_total > 0 else 0
-                    if pct > 0:
-                        fig_nat.add_trace(go.Bar(name=opt[:2], x=[''], y=[pct], 
-                                                 marker_color=colors[opt],
-                                                 text=f'{pct:.0f}%', textposition='inside', 
-                                                 textfont_size=11, showlegend=False))
+                    fig_nat.add_trace(go.Bar(name=opt[:3], x=[''], y=[pct], 
+                                             marker_color=colors[opt],
+                                             text=f'{pct:.0f}%' if pct > 0 else '', 
+                                             textposition='inside', textfont_size=11))
                 fig_nat.update_layout(barmode='stack', height=220, margin=dict(b=0,t=0,l=0,r=0), 
-                                      yaxis_range=[0,100], bargap=0, bargroupgap=0)
-                st.plotly_chart(fig_nat, use_container_width=True, key=f'nat3_{gene}_{tab_idx}')
+                                      yaxis_range=[0,100], bargap=0, showlegend=False)
+                st.plotly_chart(fig_nat, use_container_width=True, key=f'nat_full_{gene}_{tab_idx}')
                 
                 ja_pct = (nat_data == 'Ja').sum() / n_total * 100 if n_total > 0 else 0
                 st.caption(f'n={n_total} | Ja: {"✅ ≥80%" if ja_pct >= 80 else "<80%"}')
@@ -102,16 +109,15 @@ if st.session_state.df is not None:
                 n_total_stud = len(stud_data)
                 
                 fig_stud = go.Figure()
-                for opt in options:
+                for opt in legend_order:
                     pct = (stud_data == opt).sum() / n_total_stud * 100 if n_total_stud > 0 else 0
-                    if pct > 0:
-                        fig_stud.add_trace(go.Bar(name=opt[:2], x=[''], y=[pct], 
-                                                  marker_color=colors[opt],
-                                                  text=f'{pct:.0f}%', textposition='inside', 
-                                                  textfont_size=11, showlegend=False))
+                    fig_stud.add_trace(go.Bar(name=opt[:3], x=[''], y=[pct], 
+                                              marker_color=colors[opt],
+                                              text=f'{pct:.0f}%' if pct > 0 else '', 
+                                              textposition='inside', textfont_size=11))
                 fig_stud.update_layout(barmode='stack', height=220, margin=dict(b=0,t=0,l=0,r=0), 
-                                       yaxis_range=[0,100], bargap=0, bargroupgap=0)
-                st.plotly_chart(fig_stud, use_container_width=True, key=f'stud3_{gene}_{tab_idx}')
+                                       yaxis_range=[0,100], bargap=0, showlegend=False)
+                st.plotly_chart(fig_stud, use_container_width=True, key=f'stud_full_{gene}_{tab_idx}')
                 
                 ja_pct_stud = (stud_data == 'Ja').sum() / n_total_stud * 100 if n_total_stud > 0 else 0
                 st.caption(f'n={n_total_stud} | Ja: {"✅ ≥80%" if ja_pct_stud >= 80 else "<80%"}')
