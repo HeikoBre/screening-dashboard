@@ -8,7 +8,7 @@ if 'df' not in st.session_state:
 if 'genes' not in st.session_state:
     st.session_state.genes = []
 if 'gene_dict' not in st.session_state:
-    st.session_state.gene_dict = {}  # Gen -> Erkrankung
+    st.session_state.gene_dict = {}
 
 st.title('Genomisches Neugeborenenscreening')
 
@@ -20,12 +20,12 @@ if st.session_state.df is None:
             df = pd.read_csv(uploaded_file, sep=',', quotechar='"', encoding='utf-8-sig', low_memory=False)
             st.session_state.df = df
             
-            # Gene + Erkrankungen extrahieren
+            # Gene + Erkrankungen
             gene_dict = {}
             for col in df.columns:
                 if 'Gen: ' in col and 'Erkrankung: ' in col and 'nationalen' in col and '[Kommentar]' not in col:
                     gene = col.split('Gen: ')[1].split('  Erkrankung:')[0].strip()
-                    disease = col.split('Erkrankung: ')[1].split(' ')[0].strip() + '...'  # Kurz
+                    disease = col.split('Erkrankung: ')[1].split('"')[0].strip()[:30] + '...' if len(col.split('Erkrankung: ')[1].split('"')[0]) > 30 else col.split('Erkrankung: ')[1].split('"')[0].strip()
                     gene_dict[gene] = disease
             st.session_state.genes = list(gene_dict.keys())
             st.session_state.gene_dict = gene_dict
@@ -34,18 +34,19 @@ if st.session_state.df is None:
         st.rerun()
 else:
     if st.sidebar.button('Neue CSV', type='secondary'):
-        for key in st.session_state.keys():
+        for key in list(st.session_state.keys()):
             del st.session_state[key]
         st.rerun()
 
-# Tabs-Navigation
+# Tabs
 if st.session_state.df is not None:
     df = st.session_state.df
-    tabs = st.tabs([f"{gene} - {st.session_state.gene_dict.get(gene, '')}" for gene in st.session_state.genes])
+    tab_labels = [f"{gene} - {st.session_state.gene_dict.get(gene, '')}" for gene in st.session_state.genes]
+    tabs = st.tabs(tab_labels)
     
-    for i, tab in enumerate(tabs):
+    for tab_idx, tab in enumerate(tabs):
         with tab:
-            gene = st.session_state.genes[i]
+            gene = st.session_state.genes[tab_idx]
             disease_short = st.session_state.gene_dict[gene]
             
             st.markdown(f"### {gene} ({disease_short})")
@@ -56,7 +57,7 @@ if st.session_state.df is not None:
             stud_q_cols = [col for col in df.columns if f'Gen: {gene}' in col and 'wissenschaftlicher' in col and '[Kommentar]' not in col]
             stud_kom_cols = [col for col in df.columns if f'Gen: {gene}' in col and 'wissenschaftlicher' in col and '[Kommentar]' in col]
 
-            # Container für bottom-align
+            # Columns für Alignment
             left_col, right_col = st.columns(2)
             
             with left_col:
@@ -66,11 +67,13 @@ if st.session_state.df is not None:
                 ja_nat_pct = (nat_data == 'Ja').mean() * 100 if len(nat_data) > 0 else 0
                 total_nat = len(nat_data)
                 
-                fig_nat = go.Figure(go.Bar(x=[''], y=[ja_nat_pct], text=f'{ja_nat_pct:.1f}% (n={total_nat})',
+                fig_nat = go.Figure(go.Bar(x=[''], y=[ja_nat_pct], 
+                                           text=f'{ja_nat_pct:.1f}% (n={total_nat})',
                                            textposition='inside', textfont_size=14, showlegend=False,
                                            marker_color=['green' if ja_nat_pct >= 80 else 'orange']))
                 fig_nat.update_layout(height=250, margin=dict(b=0,t=0,l=0,r=0), yaxis_range=[0,100])
-                st.plotly_chart(fig_nat, use_container_width=True)
+                st.plotly_chart(fig_nat, use_container_width=True, key=f'nat_chart_{gene}_{tab_idx}')  # Unique key!
+                
                 st.caption(f'Zustimmung: {"✅ ≥80%" if ja_nat_pct >= 80 else "❌ <80%"}')
 
             with right_col:
@@ -80,11 +83,13 @@ if st.session_state.df is not None:
                 ja_stud_pct = (stud_data == 'Ja').mean() * 100 if len(stud_data) > 0 else 0
                 total_stud = len(stud_data)
                 
-                fig_stud = go.Figure(go.Bar(x=[''], y=[ja_stud_pct], text=f'{ja_stud_pct:.1f}% (n={total_stud})',
+                fig_stud = go.Figure(go.Bar(x=[''], y=[ja_stud_pct], 
+                                            text=f'{ja_stud_pct:.1f}% (n={total_stud})',
                                             textposition='inside', textfont_size=14, showlegend=False,
                                             marker_color=['blue' if ja_stud_pct >= 80 else 'lightblue']))
                 fig_stud.update_layout(height=250, margin=dict(b=0,t=0,l=0,r=0), yaxis_range=[0,100])
-                st.plotly_chart(fig_stud, use_container_width=True)
+                st.plotly_chart(fig_stud, use_container_width=True, key=f'stud_chart_{gene}_{tab_idx}')  # Unique key!
+                
                 st.caption(f'Zustimmung: {"✅ ≥80%" if ja_stud_pct >= 80 else "❌ <80%"}')
 
             # Kommentare
@@ -96,7 +101,7 @@ if st.session_state.df is not None:
             with col1:
                 st.markdown("**National:**")
                 if nat_comments:
-                    for c in nat_comments[:5]:  # Max 5
+                    for c in nat_comments[:5]:
                         st.write(f"• {c}")
                 else:
                     st.write("Keine")
