@@ -165,7 +165,7 @@ if st.session_state.df is not None:
                 st.caption(f'n={n_total_stud} | Ja: {"✅ ≥80%" if ja_pct_stud >= 80 else "<80%"}')
 
             # Kommentare
-            st.markdown("#### Kommentare")
+            st.markdown("<h4 style='font-size: 17px;'>Kommentare</h4>", unsafe_allow_html=True)
             nat_comments = [str(c) for c in df[nat_kom_cols].stack().dropna() if str(c).strip()]
             stud_comments = [str(c) for c in df[stud_kom_cols].stack().dropna() if str(c).strip()]
             
