@@ -4,16 +4,37 @@ import plotly.graph_objects as go
 from datetime import datetime
 import io
 
-# CSS
-st.markdown("""
-<style>
-.main .block-container { font-size: 13px !important; }
-h1 { font-size: 20px !important; }
-h3 { font-size: 16px !important; }
-h4 { font-size: 15px !important; }
-.caption { font-size: 11px !important; }
-</style>
-""", unsafe_allow_html=True)
+# Dark Mode Toggle in Sidebar (ganz oben)
+if 'dark_mode' not in st.session_state:
+    st.session_state.dark_mode = False
+
+# CSS mit Dark Mode
+if st.session_state.dark_mode:
+    st.markdown("""
+    <style>
+    .main .block-container { 
+        font-size: 13px !important; 
+        background-color: #0e1117;
+        color: #fafafa;
+    }
+    h1 { font-size: 20px !important; color: #fafafa; }
+    h3 { font-size: 16px !important; color: #fafafa; }
+    h4 { font-size: 15px !important; color: #fafafa; }
+    .caption { font-size: 11px !important; color: #a0a0a0; }
+    .stTabs [data-baseweb="tab-list"] { background-color: #262730; }
+    .stTabs [data-baseweb="tab"] { color: #fafafa; }
+    </style>
+    """, unsafe_allow_html=True)
+else:
+    st.markdown("""
+    <style>
+    .main .block-container { font-size: 13px !important; }
+    h1 { font-size: 20px !important; }
+    h3 { font-size: 16px !important; }
+    h4 { font-size: 15px !important; }
+    .caption { font-size: 11px !important; }
+    </style>
+    """, unsafe_allow_html=True)
 
 st.markdown("# Expertenreview gNBS")
 
@@ -83,6 +104,13 @@ else:
     if st.sidebar.button('Neue CSV 🗑️'): 
         for k in list(st.session_state.keys()): del st.session_state[k]
         st.rerun()
+
+# Sidebar - Dark Mode Toggle
+st.sidebar.markdown("### ⚙️ Einstellungen")
+dark_mode_toggle = st.sidebar.checkbox('🌙 Dark Mode', value=st.session_state.dark_mode)
+if dark_mode_toggle != st.session_state.dark_mode:
+    st.session_state.dark_mode = dark_mode_toggle
+    st.rerun()
 
 # Sidebar Export
 if st.session_state.summary_df is not None:
@@ -178,17 +206,26 @@ if st.session_state.df is not None:
                 st.caption(f'Ja: {ja_count_stud} | Nein: {nein_count_stud} | Weiß nicht: {weiss_nicht_count_stud}')
                 st.caption(f'Cut-Off: {"✅ ≥80%" if ja_pct_stud >= 80 else "❌ <80%"}')
 
-            # Kommentare
+            # Kommentare mit Expander
             st.markdown("<h4 style='font-size: 17px;'>Kommentare</h4>", unsafe_allow_html=True)
             nat_comments = [str(c) for c in df[nat_kom_cols].stack().dropna() if str(c).strip()]
             stud_comments = [str(c) for c in df[stud_kom_cols].stack().dropna() if str(c).strip()]
             
             c1, c2 = st.columns(2)
             with c1:
-                st.markdown("**National:**")
-                for c in nat_comments[:3]: st.caption(f"• {c}")
-                if not nat_comments: st.caption("Keine")
+                st.markdown(f"**National:** ({len(nat_comments)} Kommentare)")
+                if nat_comments:
+                    with st.expander(f"Alle {len(nat_comments)} Kommentare anzeigen"):
+                        for idx, c in enumerate(nat_comments, 1):
+                            st.caption(f"{idx}. {c}")
+                else:
+                    st.caption("Keine Kommentare")
+                    
             with c2:
-                st.markdown("**Studie:**")
-                for c in stud_comments[:3]: st.caption(f"• {c}")
-                if not stud_comments: st.caption("Keine")
+                st.markdown(f"**Studie:** ({len(stud_comments)} Kommentare)")
+                if stud_comments:
+                    with st.expander(f"Alle {len(stud_comments)} Kommentare anzeigen"):
+                        for idx, c in enumerate(stud_comments, 1):
+                            st.caption(f"{idx}. {c}")
+                else:
+                    st.caption("Keine Kommentare")
