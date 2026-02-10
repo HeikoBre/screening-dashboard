@@ -140,7 +140,7 @@ if st.session_state.df is not None:
                     pct = (nat_data == opt).sum() / n_total * 100 if n_total > 0 else 0
                     if pct > 0:
                         fig_nat.add_trace(go.Bar(name=opt[:3], x=[''], y=[pct], marker_color=colors[opt],
-                                                 text=f'{pct:.0f}%', textposition='inside', textfont_size=11))
+                                                 text=f'{pct:.0f}%', textposition='inside', textfont_size=11, width=0.3))
                 fig_nat.update_layout(barmode='stack', height=220, margin=dict(b=0,t=0,l=0,r=0), yaxis_range=[0,100], bargap=0, showlegend=False, width=100)
                 st.plotly_chart(fig_nat, use_container_width=True, key=f'nat_viz_{gene}_{tab_idx}')
                 
@@ -157,7 +157,7 @@ if st.session_state.df is not None:
                     pct = (stud_data == opt).sum() / n_total_stud * 100 if n_total_stud > 0 else 0
                     if pct > 0:
                         fig_stud.add_trace(go.Bar(name=opt[:3], x=[''], y=[pct], marker_color=colors[opt],
-                                                  text=f'{pct:.0f}%', textposition='inside', textfont_size=11))
+                                                  text=f'{pct:.0f}%', textposition='inside', textfont_size=11, width=0.3))
                 fig_stud.update_layout(barmode='stack', height=220, margin=dict(b=0,t=0,l=0,r=0), yaxis_range=[0,100], bargap=0, showlegend=False, width=100)
                 st.plotly_chart(fig_stud, use_container_width=True, key=f'stud_viz_{gene}_{tab_idx}')
                 
