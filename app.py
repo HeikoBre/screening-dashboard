@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
+from datetime import datetime
 import io
 
 # CSS
@@ -21,6 +22,7 @@ if 'df' not in st.session_state: st.session_state.df = None
 if 'genes' not in st.session_state: st.session_state.genes = []
 if 'gene_dict' not in st.session_state: st.session_state.gene_dict = {}
 if 'summary_df' not in st.session_state: st.session_state.summary_df = None
+if 'total_responses' not in st.session_state: st.session_state.total_responses = 0
 
 # Upload
 if st.session_state.df is None:
@@ -29,8 +31,9 @@ if st.session_state.df is None:
         with st.spinner('Lade & analysiere...'):
             df = pd.read_csv(uploaded_file, sep=',', quotechar='"', encoding='utf-8-sig', low_memory=False)
             st.session_state.df = df
+            st.session_state.total_responses = len(df)
             
-            # Namens-Extraktion (fix)
+            # Namens-Extraktion
             gene_dict = {}
             for col in df.columns:
                 if 'Gen: ' in col and 'Erkrankung: ' in col and 'nationalen' in col and '[Kommentar]' not in col:
@@ -47,7 +50,7 @@ if st.session_state.df is None:
             st.session_state.genes = sorted(gene_dict.keys())
             st.session_state.gene_dict = gene_dict
             
-            # Summary DataFrame für Export erstellen
+            # Summary Tabelle (numerisch, Yes/No)
             summary_data = []
             options = ['Ja', 'Nein', 'Ich kann diese Frage nicht beantworten']
             for gene in st.session_state.genes:
@@ -65,35 +68,45 @@ if st.session_state.df is None:
                 summary_data.append({
                     'Gen': gene,
                     'Erkrankung': st.session_state.gene_dict[gene],
-                    'National_Ja_%': f'{nat_ja:.1f}%',
+                    'National_Ja_pct': round(nat_ja, 1),
                     'National_n': n_nat,
-                    'Studie_Ja_%': f'{stud_ja:.1f}%',
+                    'Studie_Ja_pct': round(stud_ja, 1),
                     'Studie_n': n_stud,
-                    'National_80': '✅' if nat_ja >= 80 else '❌'
+                    'National_80': 'Yes' if nat_ja >= 80 else 'No'
                 })
             
             st.session_state.summary_df = pd.DataFrame(summary_data)
             
-        st.success(f'{len(st.session_state.genes)} Gene analysiert')
+        st.success(f'{len(st.session_state.genes)} Gene | {st.session_state.total_responses} Antworten')
         st.rerun()
 else:
     if st.sidebar.button('Neue CSV 🗑️'): 
         for k in list(st.session_state.keys()): del st.session_state[k]
         st.rerun()
 
-# Export Button (Sidebar)
+# Sidebar Export
 if st.session_state.summary_df is not None:
-    csv = st.session_state.summary_df.to_csv(index=False).encode('utf-8')
     st.sidebar.markdown("### 📥 Export")
+    
+    # CSV mit Datum
+    today = datetime.now().strftime("%Y%m%d")
+    csv_buffer = io.StringIO()
+    export_df = st.session_state.summary_df.copy()
+    export_df.insert(0, 'Gesamt_Responses', st.session_state.total_responses)
+    export_df.to_csv(csv_buffer, index=False)
+    csv_data = csv_buffer.getvalue().encode('utf-8')
+    
     st.sidebar.download_button(
-        label="Download Zusammenfassung.csv",
-        data=csv,
-        file_name='gNBS_Expertenreview_Zusammenfassung.csv',
+        label=f'Download Zusammenfassung_{today}.csv',
+        data=csv_data,
+        file_name=f'gNBS_Expertenreview_Zusammenfassung_{today}.csv',
         mime='text/csv'
     )
+    
+    st.sidebar.markdown(f"**Gesamt:** {st.session_state.total_responses} Responses")
     st.sidebar.dataframe(st.session_state.summary_df, use_container_width=True, height=300)
 
-# Tabs
+# Tabs (Visualisierung unverändert)
 if st.session_state.df is not None:
     df = st.session_state.df
     tabs = st.tabs(st.session_state.genes)
@@ -103,11 +116,10 @@ if st.session_state.df is not None:
             gene = st.session_state.genes[tab_idx]
             disease = st.session_state.gene_dict.get(gene, '')
             
-            col1, col2 = st.columns([1,3])  # Gen fett kursiv
+            col1, col2 = st.columns([1,3])
             with col1: st.markdown(f"**_{gene}_**")
-            with col2: st.markdown(disease)  # Normal, nicht kursiv
+            with col2: st.markdown(disease)
             
-            # Rest unverändert...
             nat_q_cols = [col for col in df.columns if f'Gen: {gene}' in col and 'nationalen' in col and '[Kommentar]' not in col]
             nat_kom_cols = [col for col in df.columns if f'Gen: {gene}' in col and 'nationalen' in col and '[Kommentar]' in col]
             stud_q_cols = [col for col in df.columns if f'Gen: {gene}' in col and 'wissenschaftlicher' in col and '[Kommentar]' not in col]
@@ -130,7 +142,7 @@ if st.session_state.df is not None:
                         fig_nat.add_trace(go.Bar(name=opt[:3], x=[''], y=[pct], marker_color=colors[opt],
                                                  text=f'{pct:.0f}%', textposition='inside', textfont_size=11))
                 fig_nat.update_layout(barmode='stack', height=220, margin=dict(b=0,t=0,l=0,r=0), yaxis_range=[0,100], bargap=0)
-                st.plotly_chart(fig_nat, use_container_width=True, key=f'nat_{gene}_{tab_idx}')
+                st.plotly_chart(fig_nat, use_container_width=True, key=f'nat_viz_{gene}_{tab_idx}')
                 
                 ja_pct = (nat_data == 'Ja').sum() / n_total * 100 if n_total > 0 else 0
                 st.caption(f'n={n_total} | Ja: {"✅ ≥80%" if ja_pct >= 80 else "<80%"}')
@@ -147,7 +159,7 @@ if st.session_state.df is not None:
                         fig_stud.add_trace(go.Bar(name=opt[:3], x=[''], y=[pct], marker_color=colors[opt],
                                                   text=f'{pct:.0f}%', textposition='inside', textfont_size=11))
                 fig_stud.update_layout(barmode='stack', height=220, margin=dict(b=0,t=0,l=0,r=0), yaxis_range=[0,100], bargap=0)
-                st.plotly_chart(fig_stud, use_container_width=True, key=f'stud_{gene}_{tab_idx}')
+                st.plotly_chart(fig_stud, use_container_width=True, key=f'stud_viz_{gene}_{tab_idx}')
                 
                 ja_pct_stud = (stud_data == 'Ja').sum() / n_total_stud * 100 if n_total_stud > 0 else 0
                 st.caption(f'n={n_total_stud} | Ja: {"✅ ≥80%" if ja_pct_stud >= 80 else "<80%"}')
