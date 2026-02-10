@@ -135,7 +135,7 @@ if st.session_state.df is not None:
                 n_total = len(nat_data)
                 
                 fig_nat = go.Figure()
-                colors = {'Ja': '#000000', 'Nein': '#4B5563', 'Ich kann diese Frage nicht beantworten': '#D1D5DB'}
+                colors = {'Ja': '#ACF3AE', 'Nein': '#C43D5A', 'Ich kann diese Frage nicht beantworten': '#DDDDDD'}
                 for opt in options:
                     pct = (nat_data == opt).sum() / n_total * 100 if n_total > 0 else 0
                     if pct > 0:
