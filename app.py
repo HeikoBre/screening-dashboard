@@ -2,66 +2,88 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
+import io
 
-# CSV laden (passen Sie den Pfad an, wenn nötig)
-@st.cache_data
-def load_data():
-    df = pd.read_csv('results-survey751417.csv', sep=';', low_memory=False)  # LimeSurvey nutzt oft ;
-    return df
+st.title('Dashboard: Genomisches Neugeborenenscreening')
 
-df = load_data()
+# Datei-Upload
+uploaded_file = st.file_uploader('CSV hochladen (z.B. results-survey751417.csv)', type='csv')
 
-# Gen/Erkrankungen identifizieren (aus Spaltennamen extrahieren)
-genes = [col.split('Gen ')[1].split(' Erkrankung')[0] for col in df.columns if 'Gen ' in col and 'nationalen' in col]
-genes = list(set(genes))  # Einzigartig
-st.title('Wöchentliches Dashboard: Genomisches Neugeborenenscreening')
+if uploaded_file is not None:
+    # CSV laden (Komma-separiert, UTF-8 BOM ignorieren)
+    df = pd.read_csv(uploaded_file, sep=',', quotechar='"', encoding='utf-8-sig', low_memory=False)
+    st.success(f'Datei geladen: {len(df)} Antworten, {len(df.columns)} Spalten.')
 
-# Sidebar für Auswahl
-selected_gene = st.sidebar.selectbox('Gen/Erkrankung wählen:', genes)
+    # Alle Gene extrahieren (aus Spalten mit "Gen: ")
+    gene_list = []
+    for col in df.columns:
+        if 'Gen: ' in col and 'Erkrankung: ' in col and 'nationalen' in col and '[Kommentar]' not in col:
+            gene = col.split('Gen: ')[1].split('  Erkrankung:')[0].strip()
+            gene_list.append(gene)
+    genes = list(set(gene_list))
+    
+    if not genes:
+        st.warning('Keine Gen-Spalten gefunden. Überprüfen Sie die CSV-Struktur.')
+    else:
+        selected_gene = st.sidebar.selectbox('Gen/Erkrankung wählen:', genes)
 
-# Daten für ausgewähltes Gen filtern
-nat_cols = [col for col in df.columns if f'Gen {selected_gene}' in col and 'nationalen' in col and 'Kommentar' not in col]
-stud_cols = [col for col in df.columns if f'Gen {selected_gene}' in col and 'wissenschaftlicher' in col and 'Kommentar' not in col]
-nat_kom = [col for col in df.columns if f'Gen {selected_gene}' in col and 'nationalen' in col and 'Kommentar' in col]
-stud_kom = [col for col in df.columns if f'Gen {selected_gene}' in col and 'wissenschaftlicher' in col and 'Kommentar' in col]
+        # Spalten für nationales Screening und Studien finden
+        nat_q_cols = [col for col in df.columns if f'Gen: {selected_gene}' in col and 'nationalen' in col and '[Kommentar]' not in col]
+        nat_kom_cols = [col for col in df.columns if f'Gen: {selected_gene}' in col and 'nationalen' in col and '[Kommentar]' in col]
+        stud_q_cols = [col for col in df.columns if f'Gen: {selected_gene}' in col and 'wissenschaftlicher' in col and '[Kommentar]' not in col]
+        stud_kom_cols = [col for col in df.columns if f'Gen: {selected_gene}' in col and 'wissenschaftlicher' in col and '[Kommentar]' in col]
 
-if nat_cols and stud_cols:
-    # Nationale Screening: Ja-Anteil (ohne Nicht beantwortbar)
-    nat_df = df[nat_cols].melt(ignore_index=False).dropna()
-    nat_df = nat_df[nat_df['value'].isin(['Ja', 'Nein'])]  # Ignoriere "Ich kann..."
-    ja_nat_pct = (nat_df['value'] == 'Ja').mean() * 100 if len(nat_df) > 0 else 0
+        if nat_q_cols and stud_q_cols:
+            # Nationale Screening: Ja % (nur Ja/Nein)
+            nat_data = df[nat_q_cols].stack().dropna()
+            nat_data = nat_data[nat_data.isin(['Ja', 'Nein'])]
+            ja_nat_pct = (nat_data == 'Ja').mean() * 100 if len(nat_data) > 0 else 0
+            total_nat = len(nat_data)
 
-    # Studien: Ja-Anteil
-    stud_df = df[stud_cols].melt(ignore_index=False).dropna()
-    stud_df = stud_df[stud_df['value'].isin(['Ja', 'Nein'])]
-    ja_stud_pct = (stud_df['value'] == 'Ja').mean() * 100 if len(stud_df) > 0 else 0
+            # Studien: Ja %
+            stud_data = df[stud_q_cols].stack().dropna()
+            stud_data = stud_data[stud_data.isin(['Ja', 'Nein'])]
+            ja_stud_pct = (stud_data == 'Ja').mean() * 100 if len(stud_data) > 0 else 0
+            total_stud = len(stud_data)
 
-    # Balkendiagramm
-    fig = go.Figure()
-    fig.add_trace(go.Bar(name='Nationales Screening', x=['Ja %'], y=[ja_nat_pct], 
-                         marker_color='green' if ja_nat_pct >= 80 else 'orange',
-                         text=f'{ja_nat_pct:.1f}%', textposition='auto'))
-    fig.add_trace(go.Bar(name='Wiss. Studie', x=['Ja %'], y=[ja_stud_pct], 
-                         marker_color='blue' if ja_stud_pct >= 80 else 'lightblue',
-                         text=f'{ja_stud_pct:.1f}%', textposition='auto'))
-    fig.update_layout(barmode='group', title=f'Zustimmung für {selected_gene}', yaxis_title='Prozentsatz Ja-Antworten')
-    st.plotly_chart(fig, use_container_width=True)
+            # Balkendiagramm
+            fig = go.Figure()
+            fig.add_trace(go.Bar(name='Nationales Screening', x=[f'{ja_nat_pct:.1f}% (n={total_nat})'], 
+                                 y=[ja_nat_pct], marker_color='green' if ja_nat_pct >= 80 else 'orange',
+                                 text=f'{ja_nat_pct:.1f}%', textposition='auto'))
+            fig.add_trace(go.Bar(name='Wiss. Studie', x=[f'{ja_stud_pct:.1f}% (n={total_stud})'], 
+                                 y=[ja_stud_pct], marker_color='blue' if ja_stud_pct >= 80 else 'lightblue',
+                                 text=f'{ja_stud_pct:.1f}%', textposition='auto'))
+            fig.update_layout(barmode='group', title=f'Zustimmung {selected_gene}', 
+                              yaxis=dict(range=[0,100], title='Ja-Prozentsatz'), height=400)
+            st.plotly_chart(fig, use_container_width=True)
 
-    # Schwellenwert-Info
-    col1, col2 = st.columns(2)
-    with col1:
-        st.metric('Nationales Screening', f'{ja_nat_pct:.1f}%', delta='✅ ≥80%' if ja_nat_pct >= 80 else '❌ <80%')
-    with col2:
-        st.metric('Wiss. Studie', f'{ja_stud_pct:.1f}%', delta='✅ ≥80%' if ja_stud_pct >= 80 else '❌ <80%')
+            # Metrics
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric('Nationales Screening', f'{ja_nat_pct:.1f}%', 
+                          '✅ ≥80%' if ja_nat_pct >= 80 else '❌ <80%', delta_color='normal')
+            with col2:
+                st.metric('Wiss. Studie', f'{ja_stud_pct:.1f}%', 
+                          '✅ ≥80%' if ja_stud_pct >= 80 else '❌ <80%', delta_color='normal')
 
-    # Kommentare anzeigen
-    st.subheader('Kommentare')
-    nat_comments = df[nat_kom].dropna().stack().tolist()
-    stud_comments = df[stud_kom].dropna().stack().tolist()
-    comments_df = pd.DataFrame({'Kategorie': ['National']*len(nat_comments) + ['Studie']*len(stud_comments),
-                                'Kommentar': nat_comments + stud_comments})
-    st.dataframe(comments_df, use_container_width=True)
-
+            # Kommentare
+            st.subheader('Kommentare')
+            nat_comments = df[nat_kom_cols].stack().dropna().tolist()
+            stud_comments = df[stud_kom_cols].stack().dropna().tolist()
+            if nat_comments or stud_comments:
+                comments_df = pd.DataFrame({
+                    'Kategorie': ['Nationales Screening'] * len(nat_comments) + ['Wiss. Studie'] * len(stud_comments),
+                    'Kommentar': nat_comments + stud_comments
+                })
+                st.dataframe(comments_df, use_container_width=True, hide_index=True)
+            else:
+                st.info('Keine Kommentare vorhanden.')
+        else:
+            st.warning(f'Keine passenden Spalten für {selected_gene} gefunden.')
+            
+    # Vorschau der Daten
+    if st.checkbox('Rohdaten-Vorschau (erste 5 Zeilen)'):
+        st.dataframe(df.head(), use_container_width=True)
 else:
-    st.warning(f'Keine Daten für {selected_gene} gefunden.')
+    st.info('Bitte laden Sie die CSV-Datei hoch.')
