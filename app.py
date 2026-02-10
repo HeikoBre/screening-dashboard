@@ -10,7 +10,7 @@ st.markdown("""
 .main .block-container { font-size: 13px !important; }
 h1 { font-size: 20px !important; }
 h3 { font-size: 16px !important; }
-h4 { font-size: 13px !important; }
+h4 { font-size: 15px !important; }
 .caption { font-size: 11px !important; }
 </style>
 """, unsafe_allow_html=True)
