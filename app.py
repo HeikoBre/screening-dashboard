@@ -17,6 +17,16 @@ h4 { font-size: 15px !important; }
 
 st.markdown("# Expertenreview gNBS")
 
+# Legende
+st.markdown("""
+<div style='background-color: #f0f2f6; padding: 10px; border-radius: 5px; margin-bottom: 20px;'>
+    <span style='font-size: 13px; font-weight: 600;'>Legende:</span>
+    <span style='background-color: #ACF3AE; padding: 3px 10px; border-radius: 3px; margin-left: 10px; font-size: 12px;'>Ja</span>
+    <span style='background-color: #C43D5A; color: white; padding: 3px 10px; border-radius: 3px; margin-left: 5px; font-size: 12px;'>Nein</span>
+    <span style='background-color: #DDDDDD; padding: 3px 10px; border-radius: 3px; margin-left: 5px; font-size: 12px;'>Kann nicht beantworten</span>
+</div>
+""", unsafe_allow_html=True)
+
 # Session State
 if 'df' not in st.session_state: st.session_state.df = None
 if 'genes' not in st.session_state: st.session_state.genes = []
